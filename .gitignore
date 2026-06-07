@@ -24,3 +24,9 @@ Makefile
 scripts/
 
 pyproject.toml
+
+
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
