@@ -11,6 +11,12 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY : str
 
+    LANGFUSE_PUBLIC_KEY: str
+
+    LANGFUSE_SECRET_KEY: str
+
+    LANGFUSE_HOST: str
+
     class Config:
         env_file = ".env"
 

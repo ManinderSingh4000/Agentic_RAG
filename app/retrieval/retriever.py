@@ -14,9 +14,18 @@ from app.llm.groq_provider import (
     GroqProvider,
 )
 
+from app.retrieval.reranker import (
+    CohereReranker,
+)
+
+from app.observability.langfuse_client import (
+    langfuse,
+)
+
 from app.prompts.retrieval import (
     RETRIEVAL_PROMPT,
 )
+
 
 class RetrieverService:
 
@@ -28,6 +37,8 @@ class RetrieverService:
 
         self.context_builder = ContextBuilder()
 
+        self.reranker = CohereReranker()
+
         self.llm = GroqProvider()
 
     def ask(
@@ -35,58 +46,136 @@ class RetrieverService:
         query: str,
     ):
 
-        query_vector = self.embedder.embed(
-            query
-        )
+        with langfuse.start_as_current_observation(
+            as_type="span",
+            name="rag-query",
+        ):
 
-        results = self.search_manager.similarity_search(
-            collection_name="knowledge_base",
-            query_vector=query_vector,
-            limit=5,
-        )
+            # --------------------------
+            # Embedding
+            # --------------------------
 
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="embedding",
+            ):
 
-        context_data = (
-                        self.context_builder.build(
-                            results
-                        )
+                query_vector = (
+                    self.embedder.embed(
+                        query
                     )
-
-        context = (
-                    context_data["context"]
                 )
 
-        sources = (
-                    context_data["sources"]
+            # --------------------------
+            # Retrieval
+            # --------------------------
+
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="retrieval",
+            ):
+
+                results = (
+                    self.search_manager.similarity_search(
+                        collection_name="knowledge_base",
+                        query_vector=query_vector,
+                        limit=20,
+                    )
                 )
 
-        unique_sources = {}
+            # --------------------------
+            # Reranking
+            # --------------------------
 
-        for source in sources:
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="reranking",
+            ):
 
-            key = (
-                source["source"],
-                source["title"]
+                results = (
+                    self.reranker.rerank(
+                        query=query,
+                        search_results=results,
+                        top_n=5,
+                    )
+                )
+
+            # --------------------------
+            # Context Building
+            # --------------------------
+
+            context_data = (
+                self.context_builder.build(
+                    results
+                )
             )
 
-            if key not in unique_sources:
-                unique_sources[key] = source
+            context = (
+                context_data["context"]
+            )
 
-        sources = list(
-            unique_sources.values()
-        )
+            sources = (
+                context_data["sources"]
+            )
 
-        prompt = RETRIEVAL_PROMPT.format(
-            context = context,
-            query = query,
-        )
+            unique_sources = {}
 
-        answer = self.llm.generate(
-            prompt
-        )
+            for source in sources:
 
-        return {
-            "query": query,
-            "answer": answer,
-            "sources" : sources,
-        }
+                key = (
+                    source["source"],
+                    source["title"],
+                )
+
+                if key not in unique_sources:
+
+                    unique_sources[
+                        key
+                    ] = source
+
+            sources = list(
+                unique_sources.values()
+            )
+
+            # --------------------------
+            # Prompt
+            # --------------------------
+
+            prompt = (
+                RETRIEVAL_PROMPT.format(
+                    context=context,
+                    query=query,
+                )
+            )
+
+            # --------------------------
+            # Generation
+            # --------------------------
+
+            with langfuse.start_as_current_observation(
+                as_type="generation",
+                name="groq-generation",
+            ) as generation:
+
+                generation.update(
+                    input=prompt,
+                    model="llama-3.3-70b-versatile",
+                )
+
+                answer = (
+                    self.llm.generate(
+                        prompt
+                    )
+                )
+
+                generation.update(
+                    output=answer,
+                )
+
+            langfuse.flush()
+
+            return {
+                "query": query,
+                "answer": answer,
+                "sources": sources,
+            }
