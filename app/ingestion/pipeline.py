@@ -9,9 +9,14 @@ from app.ingestion.loaders.markdown_loader import (
     MarkdownLoader,
 )
 
+from app.ingestion.processors.markdown_cleaner import (
+    MarkdownCleaner,
+)
+
 class IngestionPipeline:
     def __init__(self):
         self.loader = MarkdownLoader()
+        self.cleaner = MarkdownCleaner()
         self.chunker = MarkdownChunker()
 
     def run(
