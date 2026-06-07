@@ -6,7 +6,7 @@ service = RetrieverService()
 
 
 response = service.ask(
-    "How to Scrape amazon's homepage?"
+    "What is Langgraph State ?"
 )
 
 print()
@@ -24,3 +24,5 @@ print("=" * 80)
 print("ANSWER")
 
 print(response["answer"])
+
+print(response)

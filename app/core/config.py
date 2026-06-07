@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     LANGFUSE_HOST: str
 
+    GEMINI_API_KEY: str 
+
     class Config:
         env_file = ".env"
 

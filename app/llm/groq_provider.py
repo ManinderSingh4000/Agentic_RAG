@@ -2,28 +2,36 @@ from groq import Groq
 
 from app.core.config import settings
 
+from app.llm.providers.base import (
+    BaseLLMProvider,
+)
 
-class GroqProvider:
+
+class GroqProvider(
+    BaseLLMProvider
+):
 
     def __init__(self):
 
         self.client = Groq(
-            api_key=settings.GROQ_API_KEY
+            api_key=settings.GROQ_API_KEY,
         )
 
     def generate(
         self,
         prompt: str,
-    ):
+    ) -> str:
 
-        response = self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
+        response = (
+            self.client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+            )
         )
 
         return (

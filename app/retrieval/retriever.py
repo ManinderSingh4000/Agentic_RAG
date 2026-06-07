@@ -26,6 +26,9 @@ from app.prompts.retrieval import (
     RETRIEVAL_PROMPT,
 )
 
+from app.router.llm_router import (
+    LLMRouter,
+)
 
 class RetrieverService:
 
@@ -39,7 +42,8 @@ class RetrieverService:
 
         self.reranker = CohereReranker()
 
-        self.llm = GroqProvider()
+        # self.llm = GroqProvider()
+        self.llm = LLMRouter()
 
     def ask(
         self,
@@ -162,10 +166,23 @@ class RetrieverService:
                     model="llama-3.3-70b-versatile",
                 )
 
+                # answer = (
+                #     self.llm.generate(
+                #         prompt
+                #     )
+                # )
+
+                llm_response = (
+                                self.llm.generate_auto(
+                                    prompt
+                                )
+                            )
                 answer = (
-                    self.llm.generate(
-                        prompt
-                    )
+                    llm_response["response"]
+                )
+
+                provider = (
+                    llm_response["provider"]
                 )
 
                 generation.update(
@@ -175,7 +192,8 @@ class RetrieverService:
             langfuse.flush()
 
             return {
-                "query": query,
+                "query": query ,
+                "provider" : provider ,
                 "answer": answer,
                 "sources": sources,
             }
