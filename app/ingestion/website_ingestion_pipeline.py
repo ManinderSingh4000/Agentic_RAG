@@ -43,6 +43,10 @@ class WebsiteIngestionPipeline:
             url
         )
 
+        html = self.cleaner.clean(
+            html
+        )
+
         markdown = (
             self.converter.convert(
                 html

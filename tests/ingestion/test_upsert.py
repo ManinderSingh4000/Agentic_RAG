@@ -18,7 +18,7 @@ embedder = CohereEmbedder()
 manager = PointManager()
 
 chunks = pipeline.run(
-    "data/samples/langgraph.md"
+    "knowledge_base/firecrawl_lead_enrichment.md"
 )
 
 for chunk in chunks:

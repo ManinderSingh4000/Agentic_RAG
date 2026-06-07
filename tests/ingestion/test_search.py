@@ -10,7 +10,7 @@ embedder = CohereEmbedder()
 
 manager = SearchManager()
 
-query = "How does LangGraph state work?"
+query = "Why Firecrawl?"
 
 query_vector = embedder.embed(
     query
