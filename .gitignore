@@ -11,7 +11,7 @@ app/embeddings
 app/models
 app/guardrails
 app/middleware
-app/prompts
+
 app/agents
 app/evaluation
 app/graph

@@ -14,6 +14,9 @@ from app.llm.groq_provider import (
     GroqProvider,
 )
 
+from app.prompts.retrieval import (
+    RETRIEVAL_PROMPT,
+)
 
 class RetrieverService:
 
@@ -42,24 +45,41 @@ class RetrieverService:
             limit=5,
         )
 
-        context = self.context_builder.build(
-            results
+
+        context_data = (
+                        self.context_builder.build(
+                            results
+                        )
+                    )
+
+        context = (
+                    context_data["context"]
+                )
+
+        sources = (
+                    context_data["sources"]
+                )
+
+        unique_sources = {}
+
+        for source in sources:
+
+            key = (
+                source["source"],
+                source["title"]
+            )
+
+            if key not in unique_sources:
+                unique_sources[key] = source
+
+        sources = list(
+            unique_sources.values()
         )
 
-        prompt = f"""
-                    You are a helpful assistant.
-
-                    Answer ONLY using the provided context.
-
-                    If the answer is not present in the context,
-                    say you do not know.
-
-                    Context:
-                    {context}
-
-                    Question:
-                    {query}
-                """
+        prompt = RETRIEVAL_PROMPT.format(
+            context = context,
+            query = query,
+        )
 
         answer = self.llm.generate(
             prompt
@@ -67,6 +87,6 @@ class RetrieverService:
 
         return {
             "query": query,
-            "context": context,
             "answer": answer,
+            "sources" : sources,
         }

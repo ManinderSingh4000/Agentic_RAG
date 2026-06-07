@@ -4,8 +4,9 @@ from app.retrieval.retriever import (
 
 service = RetrieverService()
 
+
 response = service.ask(
-    "How does LangGraph state work?"
+    "How to Scrape amazon's homepage?"
 )
 
 print()
