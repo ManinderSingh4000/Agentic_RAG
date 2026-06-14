@@ -46,6 +46,13 @@ from app.pii.presidio_service import (
     PresidioService,
 )
 
+# from app.retrieval.query_rewriter import (
+#     QueryRewriter,
+# )
+
+from app.memory.memory_manager import (
+    MemoryManager,
+)
 
 
 class RetrieverService:
@@ -76,6 +83,16 @@ class RetrieverService:
         self.pii_service = (
             PresidioService()
         )
+
+        # self.query_rewriter = (
+        #                         QueryRewriter(
+        #                             self.llm
+        #                         )
+        #                     )
+
+        self.memory = (
+                        MemoryManager()
+                      )
 
     def ask(
         self,
@@ -123,11 +140,11 @@ class RetrieverService:
                             "sources" : [] , 
                         }
 
-                    query = (
-                        self.pii_service.anonymize(
-                            query
-                        )
-                    )
+                    # query = (
+                    #     self.pii_service.anonymize(
+                    #         query
+                    #     )
+                    # )
 
                 except ValueError as e:
                      
@@ -141,6 +158,19 @@ class RetrieverService:
 
                     }
 
+            history = (
+                self.memory.get_context()
+            )
+
+            conversation_history = ""
+
+            for msg in history:
+
+                conversation_history += (
+                    f"{msg['role']}: "
+                    f"{msg['content']}\n"
+                )
+
             # --------------------------
             # Embedding
             # --------------------------
@@ -149,6 +179,12 @@ class RetrieverService:
                                                         as_type="span",
                                                         name="embedding",
                                                         ):
+
+                # rewritten_query = (
+                #                     self.query_rewriter.rewrite(
+                #                         query
+                #                     )
+                #                 )
 
                 query_vector = (
                     self.embedder.embed(
@@ -228,13 +264,13 @@ class RetrieverService:
             )
 
             # --------------------------
-            # Prompt
-            # --------------------------
+            # 
 
             prompt = (
                 RETRIEVAL_PROMPT.format(
-                    context=context,
-                    query=query,
+                    history = conversation_history ,
+                    context = context ,
+                    query = query , 
                 )
             )
 
@@ -284,10 +320,16 @@ class RetrieverService:
                     }
                 )
 
+                self.memory.save_turn(
+                                        query=query,
+                                        answer=answer,
+                                     )
+
             langfuse.flush()
 
             return {
                 "query": query ,
+                # "rewritten_query" : rewritten_query , 
                 "provider" : provider ,
                 "answer": answer,
                 "sources": sources,

@@ -6,7 +6,9 @@ service = RetrieverService()
 
 
 response = service.ask(
-    "What is Langgraph State ?"
+    """ My email is john@gmail.com
+    What is Langgraph State ?
+    """
 )
 
 print()
