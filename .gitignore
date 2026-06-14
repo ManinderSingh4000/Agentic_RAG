@@ -9,14 +9,11 @@ docker/
 app/api
 app/embeddings
 app/models
-app/guardrails
 app/middleware
 
 app/agents
 app/evaluation
 app/graph
-app/observability
-app/pii
 app/schemas
 
 Makefile

@@ -30,6 +30,24 @@ from app.router.llm_router import (
     LLMRouter,
 )
 
+from app.guardrails.safety_checks import (
+    SafetyChecks,
+)
+
+from app.guardrails.prompt_injection import (
+    PromptInjectionDetector,
+)
+
+from app.guardrails.output_validation import (
+    OutputValidator,
+)
+
+from app.pii.presidio_service import (
+    PresidioService,
+)
+
+
+
 class RetrieverService:
 
     def __init__(self):
@@ -45,24 +63,92 @@ class RetrieverService:
         # self.llm = GroqProvider()
         self.llm = LLMRouter()
 
+        self.safety = SafetyChecks()
+
+        self.prompt_guard = (
+            PromptInjectionDetector()
+        )
+
+        self.output_validator = (
+            OutputValidator()
+        )
+
+        self.pii_service = (
+            PresidioService()
+        )
+
     def ask(
         self,
-        query: str,
-    ):
+        query: str
+        ):
 
         with langfuse.start_as_current_observation(
-            as_type="span",
-            name="rag-query",
-        ):
+            as_type="span", 
+            name="rag-query"
+            ):
+
+            with langfuse.start_as_current_observation(
+                as_type="span", 
+                name="guardrails"
+                ):    
+            
+                # --------------------------
+                # Guardrails
+                # --------------------------
+                try:
+                    query = (
+                        self.safety.validate_query(
+                            query
+                        )
+                    )
+
+                    # query = (
+                    #     self.prompt_guard.validate(
+                    #         query
+                    #     )
+                    # )
+
+                    try:
+                        query = (
+                            self.prompt_guard.validate(
+                                query
+                            )
+                        )
+                    
+                    except ValueError as e:
+                        return {
+                            "query" : query ,
+                            "provider" : None ,
+                            "answer" : str(e) ,
+                            "sources" : [] , 
+                        }
+
+                    query = (
+                        self.pii_service.anonymize(
+                            query
+                        )
+                    )
+
+                except ValueError as e:
+                     
+                    langfuse.flush()
+
+                    return {
+                        "query" : query ,
+                        "provider" : None ,
+                        "answer" : str(e) ,
+                        "sources" : []
+
+                    }
 
             # --------------------------
             # Embedding
             # --------------------------
 
             with langfuse.start_as_current_observation(
-                as_type="span",
-                name="embedding",
-            ):
+                                                        as_type="span",
+                                                        name="embedding",
+                                                        ):
 
                 query_vector = (
                     self.embedder.embed(
@@ -163,7 +249,7 @@ class RetrieverService:
 
                 generation.update(
                     input=prompt,
-                    model="llama-3.3-70b-versatile",
+                    # model="llama-3.3-70b-versatile",
                 )
 
                 # answer = (
@@ -181,12 +267,21 @@ class RetrieverService:
                     llm_response["response"]
                 )
 
+                answer = (
+                            self.output_validator.validate(
+                                answer
+                            )
+                        )
+
                 provider = (
                     llm_response["provider"]
                 )
 
                 generation.update(
                     output=answer,
+                    metadata = {
+                        "provider" : provider,
+                    }
                 )
 
             langfuse.flush()
