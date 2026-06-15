@@ -26,6 +26,34 @@ from app.prompts.retrieval import (
     RETRIEVAL_PROMPT,
 )
 
+from app.router.llm_router import (
+    LLMRouter,
+)
+
+from app.guardrails.safety_checks import (
+    SafetyChecks,
+)
+
+from app.guardrails.prompt_injection import (
+    PromptInjectionDetector,
+)
+
+from app.guardrails.output_validation import (
+    OutputValidator,
+)
+
+from app.pii.presidio_service import (
+    PresidioService,
+)
+
+# from app.retrieval.query_rewriter import (
+#     QueryRewriter,
+# )
+
+from app.memory.memory_manager import (
+    MemoryManager,
+)
+
 
 class RetrieverService:
 
@@ -39,26 +67,124 @@ class RetrieverService:
 
         self.reranker = CohereReranker()
 
-        self.llm = GroqProvider()
+        # self.llm = GroqProvider()
+        self.llm = LLMRouter()
+
+        self.safety = SafetyChecks()
+
+        self.prompt_guard = (
+            PromptInjectionDetector()
+        )
+
+        self.output_validator = (
+            OutputValidator()
+        )
+
+        self.pii_service = (
+            PresidioService()
+        )
+
+        # self.query_rewriter = (
+        #                         QueryRewriter(
+        #                             self.llm
+        #                         )
+        #                     )
+
+        self.memory = (
+                        MemoryManager()
+                      )
 
     def ask(
         self,
-        query: str,
-    ):
+        query: str
+        ):
 
         with langfuse.start_as_current_observation(
-            as_type="span",
-            name="rag-query",
-        ):
+            as_type="span", 
+            name="rag-query"
+            ):
+
+            with langfuse.start_as_current_observation(
+                as_type="span", 
+                name="guardrails"
+                ):    
+            
+                # --------------------------
+                # Guardrails
+                # --------------------------
+                try:
+                    query = (
+                        self.safety.validate_query(
+                            query
+                        )
+                    )
+
+                    # query = (
+                    #     self.prompt_guard.validate(
+                    #         query
+                    #     )
+                    # )
+
+                    try:
+                        query = (
+                            self.prompt_guard.validate(
+                                query
+                            )
+                        )
+                    
+                    except ValueError as e:
+                        return {
+                            "query" : query ,
+                            "provider" : None ,
+                            "answer" : str(e) ,
+                            "sources" : [] , 
+                        }
+
+                    # query = (
+                    #     self.pii_service.anonymize(
+                    #         query
+                    #     )
+                    # )
+
+                except ValueError as e:
+                     
+                    langfuse.flush()
+
+                    return {
+                        "query" : query ,
+                        "provider" : None ,
+                        "answer" : str(e) ,
+                        "sources" : []
+
+                    }
+
+            history = (
+                self.memory.get_context()
+            )
+
+            conversation_history = ""
+
+            for msg in history:
+
+                conversation_history += (
+                    f"{msg['role']}: "
+                    f"{msg['content']}\n"
+                )
 
             # --------------------------
             # Embedding
             # --------------------------
 
             with langfuse.start_as_current_observation(
-                as_type="span",
-                name="embedding",
-            ):
+                                                        as_type="span",
+                                                        name="embedding",
+                                                        ):
+
+                # rewritten_query = (
+                #                     self.query_rewriter.rewrite(
+                #                         query
+                #                     )
+                #                 )
 
                 query_vector = (
                     self.embedder.embed(
@@ -138,13 +264,13 @@ class RetrieverService:
             )
 
             # --------------------------
-            # Prompt
-            # --------------------------
+            # 
 
             prompt = (
                 RETRIEVAL_PROMPT.format(
-                    context=context,
-                    query=query,
+                    history = conversation_history ,
+                    context = context ,
+                    query = query , 
                 )
             )
 
@@ -159,23 +285,52 @@ class RetrieverService:
 
                 generation.update(
                     input=prompt,
-                    model="llama-3.3-70b-versatile",
+                    # model="llama-3.3-70b-versatile",
+                )
+
+                # answer = (
+                #     self.llm.generate(
+                #         prompt
+                #     )
+                # )
+
+                llm_response = (
+                                self.llm.generate_auto(
+                                    prompt
+                                )
+                            )
+                answer = (
+                    llm_response["response"]
                 )
 
                 answer = (
-                    self.llm.generate(
-                        prompt
-                    )
+                            self.output_validator.validate(
+                                answer
+                            )
+                        )
+
+                provider = (
+                    llm_response["provider"]
                 )
 
                 generation.update(
                     output=answer,
+                    metadata = {
+                        "provider" : provider,
+                    }
                 )
+
+                self.memory.save_turn(
+                                        query=query,
+                                        answer=answer,
+                                     )
 
             langfuse.flush()
 
             return {
-                "query": query,
+                "query": query ,
+                # "rewritten_query" : rewritten_query , 
+                "provider" : provider ,
                 "answer": answer,
                 "sources": sources,
             }

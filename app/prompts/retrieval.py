@@ -1,20 +1,22 @@
 RETRIEVAL_PROMPT = """
-You are a RAG assistant.
+You are a helpful assistant.
 
-Use ONLY the provided context.
+Conversation History:
 
-Rules:
+{history}
 
-1. Do not use outside knowledge.
-2. Do not hallucinate.
-3. If the answer is missing, say:
-   "I do not know."
-4. Cite section names when possible.
+Retrieved Context:
 
-Context:
 {context}
 
 Question:
+
 {query}
+
+Instructions:
+- Use the retrieved context.
+- Use conversation history when needed.
+- If the answer is not in the context, say:
+  "I do not know."
 
 """
